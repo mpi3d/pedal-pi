@@ -14,23 +14,9 @@ Pedal effects for guitar who use Raspberry Pi 0, the [Pedal Pi](https://www.elec
 
 ## Installation
 
-Install BCM2835
-
 ```
-wget http://www.airspayce.com/mikem/bcm2835/bcm2835-1.50.tar.gz
-tar xvfz bcm2835-1.50.tar.gz
-cd bcm2835-1.50
-./configure
-make
-sudo make install
+git clone https://github.com/MPi3D/Pedal_Pi.git
+cd Pedal_Pi
+chmod +x install.sh
+./install.sh
 ```
-
-## Running
-
-Compile
-
-`gcc -o {Output name} -l rt {Program}.c -l bcm2835`
-
-Running
-
-`sudo ./{Output name}`
