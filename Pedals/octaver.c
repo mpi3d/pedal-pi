@@ -92,10 +92,10 @@ int main(int argc, char** argv) {
             if (PUSH2_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
                 if (octaver_value < 2) octaver_value++;
-                if (PUSH1_val == 0) {
-                    bcm2835_delay(100);  //100ms delay for buttons debouncing
-                    if (octaver_value > 0) octaver_value--;
-                }
+            }
+            if (PUSH1_val == 0) {
+                bcm2835_delay(100);  //100ms delay for buttons debouncing
+                if (octaver_value > 0) octaver_value--;
             }
         }
 
