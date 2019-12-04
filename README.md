@@ -10,7 +10,7 @@ Pedal effects for guitar who use Raspberry Pi 0, the [Pedal Pi](https://www.elec
 
 ## Pedals Effects
 
-+ [Pedals Effects](/Pedals_Effects)
++ [Pedals](/Pedals)
 
 ## Installation
 
