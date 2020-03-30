@@ -18,5 +18,5 @@ Pedal effects for guitar who use Raspberry Pi 0, the [Pedal Pi](https://www.elec
 git clone https://github.com/MPi3D/Pedal_Pi.git
 cd Pedal_Pi
 chmod +x install.sh
-./install.sh
+sudo install.sh
 ```
