@@ -2,7 +2,7 @@
 
 Pedal effects for guitar who use Raspberry Pi 0, the [Pedal Pi](https://www.electrosmash.com/pedal-pi) and programmed in C
 
-[![Pedal Pi](/Pedal_Pi.jpg)](https://www.electrosmash.com/pedal-pi)
+[![Pedal Pi](/pedal_pi.jpg)](https://www.electrosmash.com/pedal-pi)
 
 ## Shop
 
