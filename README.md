@@ -8,13 +8,13 @@ Effects pedal for guitar who use the Raspberry Pi 0 and the [Pedal Pi](https://w
 
 + [Pedal Pi](https://shop.electrosmash.com/product/pedal-pi-kit/)
 
-## Pedals Effects
+## Effects
 
-+ [Pedals](/Pedals)
++ [Effects](/Pedals)
 
-## Installation
+## Install
 
-```
+``` sh
 git clone https://github.com/MPi3D/Pedal_Pi.git
 cd Pedal_Pi
 chmod +x install.sh
