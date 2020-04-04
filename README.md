@@ -8,10 +8,6 @@ Effects pedal for guitar who use the Raspberry Pi 0 and the [Pedal Pi](https://w
 
 + [Pedal Pi](https://shop.electrosmash.com/product/pedal-pi-kit/)
 
-## Effects
-
-+ [Effects](/Pedals)
-
 ## Install
 
 ``` sh
