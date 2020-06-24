@@ -1,7 +1,7 @@
-//CC-by-www.Electrosmash.com Pedal-Pi open-source project
+//CC-by-www.Electrosmash.com open-source project
 
-#include <stdio.h>
 #include <bcm2835.h>
+#include <stdio.h>
 
 //Define input pins
 #define PUSH1          RPI_GPIO_P1_08     //GPIO14
@@ -10,32 +10,25 @@
 #define FOOT_SWITCH    RPI_GPIO_P1_10     //GPIO15
 #define LED            RPI_V2_GPIO_P1_36  //GPIO16
 
-//Define Delay Effect parameters MAX_DELAY 800000 is 4 seconds approx
-#define DELAY_MAX 800000
-#define DELAY_MIN 0
-
-uint32_t Echo_Buffer[DELAY_MAX];
-uint32_t DelayCounter = 0;
-uint32_t Delay_Depth = 100000;  //Default starting delay is 100000 is 0.5 sec approx
-
+uint32_t read_timer = 0;
 uint32_t input_signal = 0;
 uint32_t output_signal = 0;
-uint32_t read_timer, delay;
+uint32_t bitcrushing_value = 1;  //1 bit crushed by default
 
 uint8_t FOOT_SWITCH_val;
 uint8_t TOGGLE_SWITCH_val;
 uint8_t PUSH1_val;
 uint8_t PUSH2_val;
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     //Start the BCM2835 library to access GPIO
     if (!bcm2835_init()) {
-        printf("bcm2835_init failed. Are you running as root??\n");
+        printf("bcm2835_init failed. Are you running as root ?\n");
         return 1;
     }
     //Start the SPI BUS
     if (!bcm2835_spi_begin()) {
-        printf("bcm2835_spi_begin failed. Are you running as root??\n");
+        printf("bcm2835_spi_begin failed. Are you running as root ?\n");
         return 1;
     }
 
@@ -70,8 +63,7 @@ int main(int argc, char** argv) {
     bcm2835_gpio_set_pud(TOGGLE_SWITCH, BCM2835_GPIO_PUD_UP);  //TOGGLE_SWITCH pull-up enabled
     bcm2835_gpio_set_pud(FOOT_SWITCH, BCM2835_GPIO_PUD_UP);    //FOOT_SWITCH pull-up enabled
 
-
-     while(1) {  //Main Loop
+    while(1) {  //Main Loop
         //Read 12 bits ADC
         bcm2835_spi_transfernb(mosi, miso, 3);
         input_signal = miso[2] + ((miso[1] & 0x0F) << 8);
@@ -87,28 +79,21 @@ int main(int argc, char** argv) {
             //Light the effect when the footswitch is activated
             bcm2835_gpio_write(LED, !FOOT_SWITCH_val);
 
-            //Update volume variable when the PUSH buttons are pushed
+            //Update booster_value when the PUSH1 or 2 buttons are pushed
             if (PUSH2_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
-                if (Delay_Depth < DELAY_MAX)Delay_Depth = Delay_Depth + 50000;  //50000 is 250ms approx
+                if (bitcrushing_value < 12) bitcrushing_value++;
             }
-            if (PUSH1_val == 0) {
+            else if (PUSH1_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
-                if (Delay_Depth > DELAY_MIN)Delay_Depth = Delay_Depth - 50000;
+                if (bitcrushing_value > 0) bitcrushing_value--;
             }
         }
 
-        //*** ECHO EFFECT ***//
-        //The echo effect is very similar to the delay, but instead of saving the delayed signal in a buffer and add it to the current guitar input, we store the delayed + current signal in the Echo_Buffer
-        //With PUSH1 and PUSH2 the delay time is controlled.
-
-        //Store current readings
-        //the " >> 1" makes the echo to decay, if you want a faster decay change it for " >> 2" or " >> 3"
-        Echo_Buffer[DelayCounter]  = (input_signal + Echo_Buffer[DelayCounter]) >> 1;
-        DelayCounter++;
-        if (DelayCounter >= Delay_Depth) DelayCounter = 0;
-
-        output_signal = (input_signal + (Echo_Buffer[DelayCounter])) >> 1;
+        //*** BITCRUSHING EFFECT ***//
+        //The input_signal gets a  a bit shift operation "<<"
+        //The number of bits shifted are defined by bitcrushing_value
+        output_signal = input_signal << bitcrushing_value;
 
         //Generate output PWM signal 6 bits
         bcm2835_pwm_set_data(1, output_signal & 0x3F);
@@ -120,6 +105,5 @@ int main(int argc, char** argv) {
     bcm2835_close();
     return 0;
 }
-
 
 

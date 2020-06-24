@@ -1,7 +1,7 @@
-//CC-by-www.Electrosmash.com open-source project
+//CC-by-www.Electrosmash.com Pedal-Pi open-source project
 
-#include <bcm2835.h>
 #include <stdio.h>
+#include <bcm2835.h>
 
 //Define input pins
 #define PUSH1          RPI_GPIO_P1_08     //GPIO14
@@ -10,26 +10,34 @@
 #define FOOT_SWITCH    RPI_GPIO_P1_10     //GPIO15
 #define LED            RPI_V2_GPIO_P1_36  //GPIO16
 
-uint32_t read_timer = 0;
+//Define Delay Effect parameters MAX_DELAY 800000 is 4 seconds approx
+#define DELAY_MAX 10000000
+#define DELAY_MIN 0
+
+uint32_t Delay_Buffer[DELAY_MAX];
+uint32_t DelayCounter = 100;
+uint32_t Delay_Depth = 100000;  //Default starting delay is 100000 is 0.5 sec approx
+
 uint32_t input_signal = 0;
 uint32_t output_signal = 0;
-uint32_t fuzz_value = 100;  //Good value to start
+uint32_t read_timer, delay;
+uint32_t recording = 0;
+uint32_t record_lenght = 100;
 
 uint8_t FOOT_SWITCH_val;
 uint8_t TOGGLE_SWITCH_val;
 uint8_t PUSH1_val;
 uint8_t PUSH2_val;
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
     //Start the BCM2835 library to access GPIO
     if (!bcm2835_init()) {
-        printf("bcm2835_init failed. Are you running as root??\n");
+        printf("bcm2835_init failed. Are you running as root ?\n");
         return 1;
     }
     //Start the SPI BUS
     if (!bcm2835_spi_begin()) {
-        printf("bcm2835_spi_begin failed. Are you running as root??\n");
+        printf("bcm2835_spi_begin failed. Are you running as root ?\n");
         return 1;
     }
 
@@ -45,7 +53,7 @@ int main(int argc, char **argv)
     //Define SPI bus configuration
     bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST);    //The default
     bcm2835_spi_setDataMode(BCM2835_SPI_MODE0);                 //The default
-    bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_64);  //4MHz clock with _64
+    bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_64);    //4MHz clock with _64
     bcm2835_spi_chipSelect(BCM2835_SPI_CS0);                    //The default
     bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW);    //The default
 
@@ -65,41 +73,50 @@ int main(int argc, char **argv)
     bcm2835_gpio_set_pud(FOOT_SWITCH, BCM2835_GPIO_PUD_UP);    //FOOT_SWITCH pull-up enabled
 
     while(1) {  //Main Loop
-    //Read 12 bits ADC
-    bcm2835_spi_transfernb(mosi, miso, 3);
-    input_signal = miso[2] + ((miso[1] & 0x0F) << 8);
+        //Read 12 bits ADC
+        bcm2835_spi_transfernb(mosi, miso, 3);
+        input_signal = miso[2] + ((miso[1] & 0x0F) << 8);
 
-    //Read the PUSH buttons every 50000 times (0.25s) to save resources
-    read_timer++;
-    if (read_timer == 50000) {
-        read_timer = 0;
-        PUSH1_val = bcm2835_gpio_lev(PUSH1);
-        PUSH2_val = bcm2835_gpio_lev(PUSH2);
-        TOGGLE_SWITCH_val = bcm2835_gpio_lev(TOGGLE_SWITCH);
-        FOOT_SWITCH_val = bcm2835_gpio_lev(FOOT_SWITCH);
-        //Light the effect when the footswitch is activated
-        bcm2835_gpio_write(LED, !FOOT_SWITCH_val);
+        //Read the PUSH buttons every 50000 times (0.25s) to save resources
+        read_timer++;
+        if (read_timer == 50000) {
+            read_timer = 0;
+            PUSH1_val = bcm2835_gpio_lev(PUSH1);
+            PUSH2_val = bcm2835_gpio_lev(PUSH2);
+            TOGGLE_SWITCH_val = bcm2835_gpio_lev(TOGGLE_SWITCH);
+            FOOT_SWITCH_val = bcm2835_gpio_lev(FOOT_SWITCH);
 
-        //Update booster_value when the PUSH1 or 2 buttons are pushed
-        if (PUSH1_val == 0) {
-            bcm2835_delay(100);  //100ms delay for buttons debouncing
-            if (fuzz_value < 2047) fuzz_value = fuzz_value + 10;
+            //Update volume variable when the PUSH buttons are pushed
+            if (PUSH2_val == 0) {
+                bcm2835_delay(100);  //100ms delay for buttons debouncing
+                recording = 0;
+                record_lenght = DelayCounter;
+                DelayCounter = 0;
+            }
+            if (PUSH1_val == 0) {
+                bcm2835_delay(100);  //100ms delay for buttons debouncing
+                recording = 1;
+                DelayCounter = 0;
+            }
         }
-        else if (PUSH2_val == 0) {
-            bcm2835_delay(100);  //100ms delay for buttons debouncing
-            if (fuzz_value > 0) fuzz_value = fuzz_value - 10;
+
+        //*** LOOPER GUITAR EFFECT ***//
+        if (recording == 1) {  //Start recording
+            Delay_Buffer[DelayCounter] = input_signal;
+            DelayCounter++;
+            output_signal = input_signal;
+            bcm2835_gpio_write(LED, !FOOT_SWITCH_val);
         }
-    }
+        else {  //Bypass mode
+            output_signal = (Delay_Buffer[DelayCounter] + input_signal) >> 1;
+            DelayCounter++;
+            if (DelayCounter > record_lenght)DelayCounter = 0;
+            bcm2835_gpio_write(LED, FOOT_SWITCH_val);
+        }
 
-    //*** FUZZ EFFECT ***//
-    //The input_signal is clipped to the maximum value when it reaches the distortion_value threshold
-    //The guitar signal fluctuates above and under 2047.
-    if (input_signal > 2047 + fuzz_value) input_signal = 4095;
-    if (input_signal <  2047 - fuzz_value) input_signal = 0;
-
-    //Generate output PWM signal 6 bits
-    bcm2835_pwm_set_data(1, input_signal & 0x3F);
-    bcm2835_pwm_set_data(0, input_signal >> 6);
+        //Generate output PWM signal 6 bits
+        bcm2835_pwm_set_data(1, output_signal & 0x3F);
+        bcm2835_pwm_set_data(0, output_signal >> 6);
     }
 
     //Close all and exit
@@ -107,5 +124,4 @@ int main(int argc, char **argv)
     bcm2835_close();
     return 0;
 }
-
 

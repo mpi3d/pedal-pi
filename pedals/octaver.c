@@ -11,18 +11,18 @@
 #define LED            RPI_V2_GPIO_P1_36  //GPIO16
 
 //Define Delay Effect parameters MAX_DELAY 800000 is 4 seconds approx
-#define DELAY_MAX 10000000
+#define DELAY_MAX 800000
 #define DELAY_MIN 0
 
 uint32_t Delay_Buffer[DELAY_MAX];
-uint32_t DelayCounter = 100;
-uint32_t Delay_Depth = 100000;  //Default starting delay is 100000 is 0.5 sec approx
+uint32_t DelayWrite = 0;
+uint32_t DelayRead = 0;
+uint32_t octaver_value = 1;
+uint32_t Delay_Depth = 50000;  //Default starting delay is 100000 is 0.25 sec approx
 
 uint32_t input_signal = 0;
 uint32_t output_signal = 0;
-uint32_t read_timer, delay;
-uint32_t recording = 0;
-uint32_t record_lenght = 100;
+uint32_t read_timer, delay, divider;
 
 uint8_t FOOT_SWITCH_val;
 uint8_t TOGGLE_SWITCH_val;
@@ -32,12 +32,12 @@ uint8_t PUSH2_val;
 int main(int argc, char** argv) {
     //Start the BCM2835 library to access GPIO
     if (!bcm2835_init()) {
-        printf("bcm2835_init failed. Are you running as root??\n");
+        printf("bcm2835_init failed. Are you running as root ?\n");
         return 1;
     }
     //Start the SPI BUS
     if (!bcm2835_spi_begin()) {
-        printf("bcm2835_spi_begin failed. Are you running as root??\n");
+        printf("bcm2835_spi_begin failed. Are you running as root ?\n");
         return 1;
     }
 
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
     //Define SPI bus configuration
     bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_MSBFIRST);    //The default
     bcm2835_spi_setDataMode(BCM2835_SPI_MODE0);                 //The default
-    bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_64);    //4MHz clock with _64
+    bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_64);  //4MHz clock with _64
     bcm2835_spi_chipSelect(BCM2835_SPI_CS0);                    //The default
     bcm2835_spi_setChipSelectPolarity(BCM2835_SPI_CS0, LOW);    //The default
 
@@ -85,34 +85,40 @@ int main(int argc, char** argv) {
             PUSH2_val = bcm2835_gpio_lev(PUSH2);
             TOGGLE_SWITCH_val = bcm2835_gpio_lev(TOGGLE_SWITCH);
             FOOT_SWITCH_val = bcm2835_gpio_lev(FOOT_SWITCH);
+            //Light the effect when the footswitch is activated
+            bcm2835_gpio_write(LED, !FOOT_SWITCH_val);
 
             //Update volume variable when the PUSH buttons are pushed
             if (PUSH2_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
-                recording = 0;
-                record_lenght = DelayCounter;
-                DelayCounter = 0;
+                if (octaver_value < 2) octaver_value++;
             }
             if (PUSH1_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
-                recording = 1;
-                DelayCounter = 0;
+                if (octaver_value > 0) octaver_value--;
             }
         }
 
-        //*** LOOPER GUITAR EFFECT ***//
-        if (recording == 1) {  //Start recording
-            Delay_Buffer[DelayCounter] = input_signal;
-            DelayCounter++;
-            output_signal = input_signal;
-            bcm2835_gpio_write(LED, !FOOT_SWITCH_val);
+        //*** OCTAVER EFFECT ***//
+        //Save current reading
+        Delay_Buffer[DelayWrite] = input_signal;
+
+        //Increse/reset delay counter
+        DelayWrite++;
+        if (DelayWrite >= Delay_Depth) DelayWrite = 0;
+
+        output_signal = Delay_Buffer[DelayRead];
+
+        if (octaver_value == 2) DelayRead = DelayRead + 2;
+        if (octaver_value == 1) DelayRead = DelayRead + 1;
+        if (octaver_value == 0) {
+            divider++;
+            if (divider >= 2) {
+                DelayRead = DelayRead + 1;
+                divider = 0;
+            }
         }
-        else {  //Bypass mode
-            output_signal = (Delay_Buffer[DelayCounter] + input_signal) >> 1;
-            DelayCounter++;
-            if (DelayCounter > record_lenght)DelayCounter = 0;
-            bcm2835_gpio_write(LED, FOOT_SWITCH_val);
-        }
+        if (DelayRead >= Delay_Depth) DelayRead = 0;
 
         //Generate output PWM signal 6 bits
         bcm2835_pwm_set_data(1, output_signal & 0x3F);
@@ -124,4 +130,6 @@ int main(int argc, char** argv) {
     bcm2835_close();
     return 0;
 }
+
+
 

@@ -1,7 +1,7 @@
-//CC-by-www.Electrosmash.com Pedal-Pi open-source project
+//CC-by-www.Electrosmash.com open-source project
 
-#include <stdio.h>
 #include <bcm2835.h>
+#include <stdio.h>
 
 //Define input pins
 #define PUSH1          RPI_GPIO_P1_08     //GPIO14
@@ -10,34 +10,25 @@
 #define FOOT_SWITCH    RPI_GPIO_P1_10     //GPIO15
 #define LED            RPI_V2_GPIO_P1_36  //GPIO16
 
-//Define Delay Effect parameters MAX_DELAY 800000 is 4 seconds approx
-#define DELAY_MAX 800000
-#define DELAY_MIN 0
-
-uint32_t Delay_Buffer[DELAY_MAX];
-uint32_t DelayWrite = 0;
-uint32_t DelayRead = 0;
-uint32_t octaver_value = 1;
-uint32_t Delay_Depth = 50000;  //Default starting delay is 100000 is 0.25 sec approx
-
+uint32_t read_timer = 0;
 uint32_t input_signal = 0;
 uint32_t output_signal = 0;
-uint32_t read_timer, delay, divider;
+uint32_t booster_value = 2047;
 
 uint8_t FOOT_SWITCH_val;
 uint8_t TOGGLE_SWITCH_val;
 uint8_t PUSH1_val;
 uint8_t PUSH2_val;
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     //Start the BCM2835 library to access GPIO
     if (!bcm2835_init()) {
-        printf("bcm2835_init failed. Are you running as root??\n");
+        printf("bcm2835_init failed. Are you running as root ?\n");
         return 1;
     }
     //Start the SPI BUS
     if (!bcm2835_spi_begin()) {
-        printf("bcm2835_spi_begin failed. Are you running as root??\n");
+        printf("bcm2835_spi_begin failed. Are you running as root ?\n");
         return 1;
     }
 
@@ -79,7 +70,7 @@ int main(int argc, char** argv) {
 
         //Read the PUSH buttons every 50000 times (0.25s) to save resources
         read_timer++;
-        if (read_timer == 50000) {
+        if (read_timer == 5000) {
             read_timer = 0;
             PUSH1_val = bcm2835_gpio_lev(PUSH1);
             PUSH2_val = bcm2835_gpio_lev(PUSH2);
@@ -88,37 +79,21 @@ int main(int argc, char** argv) {
             //Light the effect when the footswitch is activated
             bcm2835_gpio_write(LED, !FOOT_SWITCH_val);
 
-            //Update volume variable when the PUSH buttons are pushed
+            //Update booster_value when the PUSH1 or 2 buttons are pushed
             if (PUSH2_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
-                if (octaver_value < 2) octaver_value++;
+                if (booster_value < 4095) booster_value = booster_value + 500;
             }
-            if (PUSH1_val == 0) {
+            else if (PUSH1_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
-                if (octaver_value > 0) octaver_value--;
+                if (booster_value > 500) booster_value = booster_value - 500;
             }
         }
 
-        //*** OCTAVER EFFECT ***//
-        //Save current reading
-        Delay_Buffer[DelayWrite] = input_signal;
-
-        //Increse/reset delay counter
-        DelayWrite++;
-        if (DelayWrite >= Delay_Depth) DelayWrite = 0;
-
-        output_signal = Delay_Buffer[DelayRead];
-
-        if (octaver_value == 2) DelayRead = DelayRead + 2;
-        if (octaver_value == 1) DelayRead = DelayRead + 1;
-        if (octaver_value == 0) {
-            divider++;
-            if (divider >= 2) {
-                DelayRead = DelayRead + 1;
-                divider = 0;
-            }
-        }
-        if (DelayRead >= Delay_Depth) DelayRead = 0;
+        //*** BOOSTER EFFECT ***//
+        //The input_signal is attenuated depending on the value of booster_value
+        //I am using a simplified version of the Arduino "map" function, more info in: https://www.arduino.cc/en/reference/map
+        output_signal = (int)((float)(input_signal) * (float)((float) booster_value / (float) 4095.0));
 
         //Generate output PWM signal 6 bits
         bcm2835_pwm_set_data(1, output_signal & 0x3F);
@@ -130,6 +105,5 @@ int main(int argc, char** argv) {
     bcm2835_close();
     return 0;
 }
-
 
 

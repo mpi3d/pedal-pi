@@ -1,4 +1,4 @@
-//CC-by-www.Electrosmash.com open-source project
+//CC-by-www.Electrosmash.com Pedal-Pi open-source project
 
 #include <stdio.h>
 #include <bcm2835.h>
@@ -14,7 +14,7 @@
 #define DELAY_MAX 800000
 #define DELAY_MIN 0
 
-uint32_t Delay_Buffer[DELAY_MAX];
+uint32_t Echo_Buffer[DELAY_MAX];
 uint32_t DelayCounter = 0;
 uint32_t Delay_Depth = 100000;  //Default starting delay is 100000 is 0.5 sec approx
 
@@ -30,12 +30,12 @@ uint8_t PUSH2_val;
 int main(int argc, char** argv) {
     //Start the BCM2835 library to access GPIO
     if (!bcm2835_init()) {
-        printf("bcm2835_init failed. Are you running as root??\n");
+        printf("bcm2835_init failed. Are you running as root ?\n");
         return 1;
     }
     //Start the SPI BUS
     if (!bcm2835_spi_begin()) {
-        printf("bcm2835_spi_begin failed. Are you running as root??\n");
+        printf("bcm2835_spi_begin failed. Are you running as root ?\n");
         return 1;
     }
 
@@ -70,7 +70,8 @@ int main(int argc, char** argv) {
     bcm2835_gpio_set_pud(TOGGLE_SWITCH, BCM2835_GPIO_PUD_UP);  //TOGGLE_SWITCH pull-up enabled
     bcm2835_gpio_set_pud(FOOT_SWITCH, BCM2835_GPIO_PUD_UP);    //FOOT_SWITCH pull-up enabled
 
-    while(1) {
+
+     while(1) {  //Main Loop
         //Read 12 bits ADC
         bcm2835_spi_transfernb(mosi, miso, 3);
         input_signal = miso[2] + ((miso[1] & 0x0F) << 8);
@@ -97,15 +98,17 @@ int main(int argc, char** argv) {
             }
         }
 
-        //*** DELAY EFFECT ***//
-        //The input_signal is saved in a "circular" buffer (Delay_Buffer) to be recovered later
-        //The delayed signal is added again to the current guitar input so you can hear the original and delayed at the same time
-        //With PUSH1 and PUSH2 the delay time is controlled
+        //*** ECHO EFFECT ***//
+        //The echo effect is very similar to the delay, but instead of saving the delayed signal in a buffer and add it to the current guitar input, we store the delayed + current signal in the Echo_Buffer
+        //With PUSH1 and PUSH2 the delay time is controlled.
 
-        Delay_Buffer[DelayCounter] = input_signal;
+        //Store current readings
+        //the " >> 1" makes the echo to decay, if you want a faster decay change it for " >> 2" or " >> 3"
+        Echo_Buffer[DelayCounter]  = (input_signal + Echo_Buffer[DelayCounter]) >> 1;
         DelayCounter++;
         if (DelayCounter >= Delay_Depth) DelayCounter = 0;
-        output_signal = (Delay_Buffer[DelayCounter] + input_signal) >> 1;
+
+        output_signal = (input_signal + (Echo_Buffer[DelayCounter])) >> 1;
 
         //Generate output PWM signal 6 bits
         bcm2835_pwm_set_data(1, output_signal & 0x3F);

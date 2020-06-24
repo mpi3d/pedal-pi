@@ -1,4 +1,4 @@
-//CC-by-www.Electrosmash.com Pedal-Pi open-source project
+//CC-by-www.Electrosmash.com open-source project
 
 #include <stdio.h>
 #include <bcm2835.h>
@@ -14,19 +14,13 @@
 #define DELAY_MAX 800000
 #define DELAY_MIN 0
 
-uint32_t Echo_Buffer1[DELAY_MAX];
-uint32_t Echo_Buffer2[DELAY_MAX];
-uint32_t Echo_Buffer3[DELAY_MAX];
-uint32_t DelayCounter1 = 0;
-uint32_t DelayCounter2 = 0;
-uint32_t DelayCounter3 = 0;
-uint32_t Delay_Depth1 = 10000;  //Default starting delay is 100000 is 0.5 sec approx
-uint32_t Delay_Depth2 = 5000;  //Default starting delay is 100000 is 0.25 sec approx
-uint32_t Delay_Depth3 = 2500;  //Default starting delay is 100000 is 0.125 sec approx
+uint32_t Delay_Buffer[DELAY_MAX];
+uint32_t DelayCounter = 0;
+uint32_t Delay_Depth = 100000;  //Default starting delay is 100000 is 0.5 sec approx
 
 uint32_t input_signal = 0;
 uint32_t output_signal = 0;
-uint32_t read_timer;
+uint32_t read_timer, delay;
 
 uint8_t FOOT_SWITCH_val;
 uint8_t TOGGLE_SWITCH_val;
@@ -36,12 +30,12 @@ uint8_t PUSH2_val;
 int main(int argc, char** argv) {
     //Start the BCM2835 library to access GPIO
     if (!bcm2835_init()) {
-        printf("bcm2835_init failed. Are you running as root??\n");
+        printf("bcm2835_init failed. Are you running as root ?\n");
         return 1;
     }
     //Start the SPI BUS
     if (!bcm2835_spi_begin()) {
-        printf("bcm2835_spi_begin failed. Are you running as root??\n");
+        printf("bcm2835_spi_begin failed. Are you running as root ?\n");
         return 1;
     }
 
@@ -76,8 +70,7 @@ int main(int argc, char** argv) {
     bcm2835_gpio_set_pud(TOGGLE_SWITCH, BCM2835_GPIO_PUD_UP);  //TOGGLE_SWITCH pull-up enabled
     bcm2835_gpio_set_pud(FOOT_SWITCH, BCM2835_GPIO_PUD_UP);    //FOOT_SWITCH pull-up enabled
 
-
-    while(1) {  //Main Loop
+    while(1) {
         //Read 12 bits ADC
         bcm2835_spi_transfernb(mosi, miso, 3);
         input_signal = miso[2] + ((miso[1] & 0x0F) << 8);
@@ -96,38 +89,23 @@ int main(int argc, char** argv) {
             //Update volume variable when the PUSH buttons are pushed
             if (PUSH2_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
-                if (Delay_Depth1 < DELAY_MAX) Delay_Depth1 = Delay_Depth1 + 5000;  //50000 adds 25ms approx
-                if (Delay_Depth2 < DELAY_MAX) Delay_Depth2 = Delay_Depth2 + 5000;  //50000 adds 25ms approx
-                if (Delay_Depth3 < DELAY_MAX) Delay_Depth3 = Delay_Depth3 + 5000;  //50000 adds 25ms approx
+                if (Delay_Depth < DELAY_MAX)Delay_Depth = Delay_Depth + 50000;  //50000 is 250ms approx
             }
             if (PUSH1_val == 0) {
                 bcm2835_delay(100);  //100ms delay for buttons debouncing
-                if (Delay_Depth1 > DELAY_MIN) Delay_Depth1 = Delay_Depth1 - 5000;  //50000 adds 25ms approx
-                if (Delay_Depth2 < DELAY_MAX) Delay_Depth2 = Delay_Depth2 - 5000;  //50000 adds 25ms approx
-                if (Delay_Depth3 < DELAY_MAX) Delay_Depth3 = Delay_Depth3 - 5000;  //50000 adds 25ms approx
+                if (Delay_Depth > DELAY_MIN)Delay_Depth = Delay_Depth - 50000;
             }
         }
 
-        //*** REVERB EFFECT ***//
-        //The echo effect is very similar to the echo, but with 3 Echo_Buffers instead of 1 (Echo_Buffer1/2/3)
+        //*** DELAY EFFECT ***//
+        //The input_signal is saved in a "circular" buffer (Delay_Buffer) to be recovered later
+        //The delayed signal is added again to the current guitar input so you can hear the original and delayed at the same time
+        //With PUSH1 and PUSH2 the delay time is controlled
 
-        //Store current readings
-        //the " >> 1" makes the echo to decay, if you want a faster decay change it for " >> 2" or " >> 3"
-
-        Echo_Buffer1[DelayCounter1] = (input_signal + Echo_Buffer1[DelayCounter1]) >> 1;
-        Echo_Buffer2[DelayCounter2] = (input_signal + Echo_Buffer2[DelayCounter2]) >> 1;
-        Echo_Buffer3[DelayCounter3] = (input_signal + Echo_Buffer3[DelayCounter3]) >> 1;
-
-        DelayCounter1++;
-        if (DelayCounter1 >= Delay_Depth1) DelayCounter1 = 0;
-
-        DelayCounter2++;
-        if (DelayCounter2 >= Delay_Depth2) DelayCounter2 = 0;
-
-        DelayCounter3++;
-        if (DelayCounter3 >= Delay_Depth3) DelayCounter3 = 0;
-
-        output_signal = (input_signal + (Echo_Buffer1[DelayCounter1]) + (Echo_Buffer2[DelayCounter2]) + (Echo_Buffer3[DelayCounter3])) >> 2;
+        Delay_Buffer[DelayCounter] = input_signal;
+        DelayCounter++;
+        if (DelayCounter >= Delay_Depth) DelayCounter = 0;
+        output_signal = (Delay_Buffer[DelayCounter] + input_signal) >> 1;
 
         //Generate output PWM signal 6 bits
         bcm2835_pwm_set_data(1, output_signal & 0x3F);

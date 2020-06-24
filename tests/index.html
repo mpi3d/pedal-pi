@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Pedal-Pi</title>
+        <style>
+            button.add {
+                background-color: black;
+                border: 5px solid gray;
+                border-radius: 10px;
+                color: gray;
+            }
+
+            button:hover.add {
+                transition-duration: 0.2s;
+                background-color: gray;
+                color: black;
+            }
+
+            div.pedals {
+                background-color: black;
+                position: absolute;
+                height: 100%;
+                width: 75%;
+                left: 0;
+                top: 0;
+            }
+
+            div.options {
+                background-color: lightgray;
+                position: fixed;
+                height: 100%;
+                width: 25%;
+                right: 0;
+                top: 0;
+            }
+
+            div.pedal {
+                background-color: red;
+                border-radius: 10px;
+                height: 100px;
+                width: 100px;
+            }
+
+            span.pedal {
+                transition-duration: 0.2s;
+                background-color: blue;
+                position: absolute;
+                bottom: 0;
+                right: 0;
+                left: 0;
+                top: 0;
+            }
+
+            input:checked + span.pedal {
+                background-color: red;
+            }
+
+            select.pedal {
+                background-color: red;
+                border: 2px solid black;
+                border-radius: 10px;
+                width: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div id='pedals' class='pedals'></div>
+        <div id='options' class='options'>
+            <label class="switch"><input type="checkbox"><span class="pedal"></span></label>
+        </div>
+    </body>
+    <script>
+        var pedals_list = ['Delay', 'Distortion', 'Echo', 'Fuzz', 'Looper', 'Octaver', 'Reverb', 'Tremolo'];
+        var pedals = ['Add'];
+        function refresh_pedals() {
+            var option = '';
+            for (var pedal_number = 0; pedal_number < pedals_list.length; pedal_number++) {
+                option = option + '<option value="' + pedals_list[pedal_number] + '">' + pedals_list[pedal_number] + '</option>';
+            }
+            var html = '';
+            for (var pedal_number = 0; pedal_number < pedals.length; pedal_number++) {
+                if (pedals[pedal_number] == 'Add') {
+                    html = html + '<button class="add" onclick="add()">⊕</button>';
+                }
+                else {
+                    html = html + '<div class="pedal"><select id="select ' + pedals[pedal_number] + '" class="pedal" onchange="change(\'' + pedals[pedal_number] + '\');"><option value="' + pedals[pedal_number] + '">' + pedals[pedal_number] + '</option>' + option + '</select></div>';
+                }
+            }
+            document.getElementById('pedals').innerHTML = html;
+        }
+        function change(pedal) {
+            var select = document.getElementById('select ' + pedal);
+            var value = select.options[select.selectedIndex].value;
+            pedals[pedals.indexOf(pedal)] = value;
+            pedals_list.splice(pedals_list.indexOf(value), 1);
+            pedals_list.push(pedal);
+            refresh_pedals();
+        }
+        function add() {
+            pedals_list.sort();
+            pedals.pop();
+            pedals.push(pedals_list[0]);
+            pedals_list.shift();
+            if (pedals_list.length > 0) pedals.push('Add');
+            refresh_pedals();
+        }
+        refresh_pedals();
+    </script>
+</html>

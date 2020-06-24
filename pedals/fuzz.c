@@ -13,22 +13,23 @@
 uint32_t read_timer = 0;
 uint32_t input_signal = 0;
 uint32_t output_signal = 0;
-uint32_t booster_value = 2047;
+uint32_t fuzz_value = 100;  //Good value to start
 
 uint8_t FOOT_SWITCH_val;
 uint8_t TOGGLE_SWITCH_val;
 uint8_t PUSH1_val;
 uint8_t PUSH2_val;
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     //Start the BCM2835 library to access GPIO
     if (!bcm2835_init()) {
-        printf("bcm2835_init failed. Are you running as root??\n");
+        printf("bcm2835_init failed. Are you running as root ?\n");
         return 1;
     }
     //Start the SPI BUS
     if (!bcm2835_spi_begin()) {
-        printf("bcm2835_spi_begin failed. Are you running as root??\n");
+        printf("bcm2835_spi_begin failed. Are you running as root ?\n");
         return 1;
     }
 
@@ -64,40 +65,41 @@ int main(int argc, char **argv) {
     bcm2835_gpio_set_pud(FOOT_SWITCH, BCM2835_GPIO_PUD_UP);    //FOOT_SWITCH pull-up enabled
 
     while(1) {  //Main Loop
-        //Read 12 bits ADC
-        bcm2835_spi_transfernb(mosi, miso, 3);
-        input_signal = miso[2] + ((miso[1] & 0x0F) << 8);
+    //Read 12 bits ADC
+    bcm2835_spi_transfernb(mosi, miso, 3);
+    input_signal = miso[2] + ((miso[1] & 0x0F) << 8);
 
-        //Read the PUSH buttons every 50000 times (0.25s) to save resources
-        read_timer++;
-        if (read_timer == 5000) {
-            read_timer = 0;
-            PUSH1_val = bcm2835_gpio_lev(PUSH1);
-            PUSH2_val = bcm2835_gpio_lev(PUSH2);
-            TOGGLE_SWITCH_val = bcm2835_gpio_lev(TOGGLE_SWITCH);
-            FOOT_SWITCH_val = bcm2835_gpio_lev(FOOT_SWITCH);
-            //Light the effect when the footswitch is activated
-            bcm2835_gpio_write(LED, !FOOT_SWITCH_val);
+    //Read the PUSH buttons every 50000 times (0.25s) to save resources
+    read_timer++;
+    if (read_timer == 50000) {
+        read_timer = 0;
+        PUSH1_val = bcm2835_gpio_lev(PUSH1);
+        PUSH2_val = bcm2835_gpio_lev(PUSH2);
+        TOGGLE_SWITCH_val = bcm2835_gpio_lev(TOGGLE_SWITCH);
+        FOOT_SWITCH_val = bcm2835_gpio_lev(FOOT_SWITCH);
+        //Light the effect when the footswitch is activated
+        bcm2835_gpio_write(LED, !FOOT_SWITCH_val);
 
-            //Update booster_value when the PUSH1 or 2 buttons are pushed
-            if (PUSH2_val == 0) {
-                bcm2835_delay(100);  //100ms delay for buttons debouncing
-                if (booster_value < 4095) booster_value = booster_value + 500;
-            }
-            else if (PUSH1_val == 0) {
-                bcm2835_delay(100);  //100ms delay for buttons debouncing
-                if (booster_value > 500) booster_value = booster_value - 500;
-            }
+        //Update booster_value when the PUSH1 or 2 buttons are pushed
+        if (PUSH1_val == 0) {
+            bcm2835_delay(100);  //100ms delay for buttons debouncing
+            if (fuzz_value < 2047) fuzz_value = fuzz_value + 10;
         }
+        else if (PUSH2_val == 0) {
+            bcm2835_delay(100);  //100ms delay for buttons debouncing
+            if (fuzz_value > 0) fuzz_value = fuzz_value - 10;
+        }
+    }
 
-        //*** BOOSTER EFFECT ***//
-        //The input_signal is attenuated depending on the value of booster_value
-        //I am using a simplified version of the Arduino "map" function, more info in: https://www.arduino.cc/en/reference/map
-        output_signal = (int)((float)(input_signal) * (float)((float) booster_value / (float) 4095.0));
+    //*** FUZZ EFFECT ***//
+    //The input_signal is clipped to the maximum value when it reaches the distortion_value threshold
+    //The guitar signal fluctuates above and under 2047.
+    if (input_signal > 2047 + fuzz_value) input_signal = 4095;
+    if (input_signal <  2047 - fuzz_value) input_signal = 0;
 
-        //Generate output PWM signal 6 bits
-        bcm2835_pwm_set_data(1, output_signal & 0x3F);
-        bcm2835_pwm_set_data(0, output_signal >> 6);
+    //Generate output PWM signal 6 bits
+    bcm2835_pwm_set_data(1, input_signal & 0x3F);
+    bcm2835_pwm_set_data(0, input_signal >> 6);
     }
 
     //Close all and exit
