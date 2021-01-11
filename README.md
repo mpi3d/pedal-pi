@@ -11,8 +11,8 @@ Effects pedal for guitar who use the Raspberry Pi 0 and the [Pedal Pi](https://w
 ## Install
 
 ``` sh
-git clone https://github.com/MPi3D/Pedal_Pi.git
-cd Pedal_Pi
+git clone https://github.com/mpi3d/pedal-pi.git
+cd pedal-pi
 chmod +x install.sh
 sudo install.sh
 ```
